@@ -1,0 +1,16 @@
+{
+    "name": "KC.MQTT",
+    "rootNamespace": "KC",
+    "references": [
+        "GUID:f467974bbe0f2804f8d3b92221ce2511"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

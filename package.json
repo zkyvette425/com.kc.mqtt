@@ -1,0 +1,22 @@
+{
+  "name": "com.kc.mqtt",
+  "displayName": "KC.MQTT",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "author": "KunZhou <450228418@qq.com>",
+  "dependencies": {
+    "com.kc.core": "0.1.6"
+  },
+  "description": "提供MQTT功能",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:zkyvette425/com.kc.mqtt.git"
+  },
+  "keywords": [
+    "kc"
+  ],
+  "license": "MIT"
+}
