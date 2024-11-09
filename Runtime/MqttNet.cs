@@ -9,11 +9,10 @@ namespace KC
     {
         private Root _root;
         
-        internal MqttFactory MqttFactory { get; private set; }
+        public MqttFactory MqttFactory { get; private set; }
 
         public MqttTopicCache MqttTopicCache { get; private set; }
         
-        public bool Log { get; set; }
         
         public void Awake(Root root)
         {

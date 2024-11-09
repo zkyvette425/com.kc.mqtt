@@ -2,16 +2,17 @@
 using System.Text;
 using System.Threading.Tasks;
 using MQTTnet.Client;
-using UnityEngine;
+using NLog;
 
 namespace KC
 {
     public class MqttClientComponent : Component,IAwake,IDestroy
     {
         private IMqttClient _mqttClient;
+        private string _logGroup;
         private MqttClientOptions _mqttClientOptions;
 
-        internal IMqttClient MqttClient => _mqttClient;
+        public IMqttClient MqttClient => _mqttClient;
         
         public event EventHandler<MqttReceivePacket> MqttReceive;
         public MqttClientOptionsBuilder ClientOptionsBuilder { get; set; }
@@ -24,16 +25,19 @@ namespace KC
             _mqttClient.ConnectedAsync += MqttClientOnConnectedAsync;
             _mqttClient.DisconnectedAsync += MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync += ClientOnApplicationMessageReceivedAsync;
+
         }
 
-        public async Task Connect(string uri,int port,string clientId,TimeSpan keepAlivePeriod)
+        public async Task Connect(string uri, int port, string clientId, TimeSpan keepAlivePeriod)
         {
             if (_mqttClient.IsConnected)
             {
                 return;
             }
-            
-            _mqttClientOptions = ClientOptionsBuilder.WithTcpServer(uri, port).WithClientId(clientId)
+
+            _logGroup = "MQTT Client " + clientId;
+            KC.Log.Instance?.RegisterLogger(_logGroup);
+            _mqttClientOptions = ClientOptionsBuilder.WithTcpServer(uri, port).WithClientId(clientId).WithCleanStart()
                 .WithKeepAlivePeriod(keepAlivePeriod).Build();
             await _mqttClient.ConnectAsync(_mqttClientOptions);
         }
@@ -76,10 +80,7 @@ namespace KC
 
         private void Log(string message)
         {
-            if (MqttNet.Instance.Log)
-            {
-                Debug.Log(message);
-            }
+            LogManager.GetLogger(_logGroup).Trace(message);
         }
 
         public void Destroy()
@@ -89,6 +90,7 @@ namespace KC
             _mqttClient.DisconnectedAsync -= MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync -= ClientOnApplicationMessageReceivedAsync;
             _mqttClient.DisconnectAsync();
+            KC.Log.Instance?.RegisterLogger(_logGroup);
         }
 
         /// <summary>

@@ -1,13 +1,14 @@
 {
   "name": "com.kc.mqtt",
   "displayName": "KC.MQTT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "unity": "2022.3",
   "author": "KunZhou <450228418@qq.com>",
   "dependencies": {
-    "com.kc.core": "0.1.6"
+    "com.kc.core": "0.1.6",
+    "com.kc.nlog": "0.1.8"
   },
-  "description": "提供MQTT功能",
+  "description": "\u63d0\u4f9bMQTT\u529f\u80fd",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
