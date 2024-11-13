@@ -45,6 +45,8 @@ namespace KC
         public async Task Connect()
         {
             _mqttClientOptions = ClientOptionsBuilder.Build();
+            _logGroup = "MQTT Client " + _mqttClientOptions.ClientId;
+            KC.Log.Instance?.RegisterLogger(_logGroup);
             await _mqttClient.ConnectAsync(_mqttClientOptions);
         }
         
