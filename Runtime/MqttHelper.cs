@@ -30,6 +30,10 @@ namespace KC
         public static MqttPublishComponent GetOrAddPublishTopic(this MqttClientComponent component, string topicType)
         {
             var publishComponents = component.GetComponents<MqttPublishComponent>();
+            if (publishComponents == null)
+            {
+                return component.AddComponent<MqttPublishComponent, string>(topicType);
+            }
             foreach (var publishComponent in publishComponents)
             {
                 if (publishComponent.Topic.Equals(topicType))
