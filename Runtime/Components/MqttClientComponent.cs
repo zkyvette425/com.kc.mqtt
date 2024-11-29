@@ -9,23 +9,26 @@ namespace KC
     public class MqttClientComponent : Component,IAwake,IDestroy
     {
         private IMqttClient _mqttClient;
-        private string _logGroup;
+        private ILogger _logger;
+
         private MqttClientOptions _mqttClientOptions;
 
         public IMqttClient MqttClient => _mqttClient;
         
         public event EventHandler<MqttReceivePacket> MqttReceive;
         public MqttClientOptionsBuilder ClientOptionsBuilder { get; set; }
+
+        public bool IsCloseReceivedLog;
         
         public void Awake()
         {
+            IsCloseReceivedLog = true;
             _mqttClient = MqttNet.Instance.MqttFactory.CreateMqttClient();
             ClientOptionsBuilder = MqttNet.Instance.MqttFactory.CreateClientOptionsBuilder();
             _mqttClient.ConnectingAsync += MqttClientOnConnectingAsync;
             _mqttClient.ConnectedAsync += MqttClientOnConnectedAsync;
             _mqttClient.DisconnectedAsync += MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync += ClientOnApplicationMessageReceivedAsync;
-
         }
 
         public async Task Connect(string uri, int port, string clientId, TimeSpan keepAlivePeriod)
@@ -35,8 +38,9 @@ namespace KC
                 return;
             }
 
-            _logGroup = "MQTT Client " + clientId;
-            KC.Log.Instance?.RegisterLogger(_logGroup);
+            var logName = "MQTT Client " + clientId;
+            KC.Log.Instance?.RegisterLogger(logName);
+            _logger = LogManager.GetLogger(logName);
             _mqttClientOptions = ClientOptionsBuilder.WithTcpServer(uri, port).WithClientId(clientId).WithCleanStart()
                 .WithKeepAlivePeriod(keepAlivePeriod).Build();
             await _mqttClient.ConnectAsync(_mqttClientOptions);
@@ -45,8 +49,9 @@ namespace KC
         public async Task Connect()
         {
             _mqttClientOptions = ClientOptionsBuilder.Build();
-            _logGroup = "MQTT Client " + _mqttClientOptions.ClientId;
-            KC.Log.Instance?.RegisterLogger(_logGroup);
+            var logName = "MQTT Client " + _mqttClientOptions.ClientId;
+            KC.Log.Instance?.RegisterLogger(logName);
+            _logger = LogManager.GetLogger(logName);
             await _mqttClient.ConnectAsync(_mqttClientOptions);
         }
         
@@ -76,13 +81,16 @@ namespace KC
             packet.TopicType = type;
             packet.Message = message;
             MqttReceive?.Invoke(this,packet);
-            Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{message}");
+            if (IsCloseReceivedLog)
+            {
+                Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{message}");
+            }
             return Task.FromResult(true);
         }
 
         private void Log(string message)
         {
-            LogManager.GetLogger(_logGroup).Trace(message);
+            _logger.Trace(message);
         }
 
         public void Destroy()
@@ -92,7 +100,7 @@ namespace KC
             _mqttClient.DisconnectedAsync -= MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync -= ClientOnApplicationMessageReceivedAsync;
             _mqttClient.DisconnectAsync();
-            KC.Log.Instance?.RegisterLogger(_logGroup);
+            KC.Log.Instance?.Remove(_logger.Name);
         }
 
         /// <summary>
