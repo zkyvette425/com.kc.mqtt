@@ -22,7 +22,7 @@ namespace KC
         
         public void Awake()
         {
-            IsCloseReceivedLog = true;
+            IsCloseReceivedLog = false;
             _mqttClient = MqttNet.Instance.MqttFactory.CreateMqttClient();
             ClientOptionsBuilder = MqttNet.Instance.MqttFactory.CreateClientOptionsBuilder();
             _mqttClient.ConnectingAsync += MqttClientOnConnectingAsync;
@@ -81,7 +81,7 @@ namespace KC
             packet.TopicType = type;
             packet.Message = message;
             MqttReceive?.Invoke(this,packet);
-            if (IsCloseReceivedLog)
+            if (!IsCloseReceivedLog)
             {
                 Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{message}");
             }
@@ -113,6 +113,7 @@ namespace KC
             _mqttClient = null;
             _mqttClientOptions = null;
             ClientOptionsBuilder = null;
+            IsCloseReceivedLog = false;
         }
     }
 }
