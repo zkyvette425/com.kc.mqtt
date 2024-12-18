@@ -16,6 +16,7 @@ namespace KC
         public IMqttClient MqttClient => _mqttClient;
         
         public event EventHandler<MqttReceivePacket> MqttReceive;
+        
         public MqttClientOptionsBuilder ClientOptionsBuilder { get; set; }
 
         public bool IsCloseReceivedLog;
@@ -75,15 +76,14 @@ namespace KC
         
         private Task ClientOnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
         {
-            var message = Encoding.UTF8.GetString(arg.ApplicationMessage.PayloadSegment);
             var type = MqttNet.Instance.MqttTopicCache.Get(arg.ApplicationMessage.Topic);
             var packet = ReferencePool.Acquire<MqttReceivePacket>();
             packet.TopicType = type;
-            packet.Message = message;
+            packet.Buffer = arg.ApplicationMessage.PayloadSegment;
             MqttReceive?.Invoke(this,packet);
             if (!IsCloseReceivedLog)
             {
-                Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{message}");
+                Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{packet.Message}");
             }
             return Task.FromResult(true);
         }

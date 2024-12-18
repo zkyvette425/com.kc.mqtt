@@ -35,7 +35,7 @@ namespace KC
 
         public async Task Unsubscribe()
         {
-            if (IsSubscribing)
+            if (!IsSubscribing)
             {
                 return;
             }
