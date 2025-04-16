@@ -119,9 +119,8 @@ namespace KC
                     {
                         if (!IsCloseReceivedLog)
                         {
-                            Log($"MQTT客户端:{_mqttClient.Options.ClientId} 重连处理失败,{e}");
+                            _logger.Warn($"MQTT客户端:{_mqttClient.Options.ClientId} 重连处理失败,{e}");
                         }
-                        throw;
                     }
                 }
             });
