@@ -3,7 +3,9 @@
     "rootNamespace": "KC",
     "references": [
         "GUID:f467974bbe0f2804f8d3b92221ce2511",
-        "GUID:60160933188743a4c8b357bf1c3e82a0"
+        "GUID:60160933188743a4c8b357bf1c3e82a0",
+        "GUID:ad8d74e82d4fc844f802b50c4b3d5323",
+        "MQTTNET"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

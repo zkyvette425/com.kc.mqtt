@@ -1,11 +1,13 @@
 ﻿using System;
-using System.Text;
+using System.Linq;
 using System.Threading.Tasks;
 using MQTTnet.Client;
 using NLog;
 
 namespace KC
 {
+    public delegate Task ReconnectEventHandler();
+    
     public class MqttClientComponent : Component,IAwake,IDestroy
     {
         private IMqttClient _mqttClient;
@@ -17,7 +19,10 @@ namespace KC
         
         public event EventHandler<MqttReceivePacket> MqttReceive;
         
+        public event ReconnectEventHandler ReconnectEvent;
+        
         public MqttClientOptionsBuilder ClientOptionsBuilder { get; set; }
+        
 
         public bool IsCloseReceivedLog;
         
@@ -45,6 +50,7 @@ namespace KC
             _mqttClientOptions = ClientOptionsBuilder.WithTcpServer(uri, port).WithClientId(clientId).WithCleanStart()
                 .WithKeepAlivePeriod(keepAlivePeriod).Build();
             await _mqttClient.ConnectAsync(_mqttClientOptions);
+            AddReconnect();
         }
 
         public async Task Connect()
@@ -54,12 +60,18 @@ namespace KC
             KC.Log.Instance?.RegisterLogger(logName);
             _logger = LogManager.GetLogger(logName);
             await _mqttClient.ConnectAsync(_mqttClientOptions);
+            AddReconnect();
         }
         
-        private Task MqttClientOnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
+        private async Task MqttClientOnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
         {
             Log($"MQTT客户端:{_mqttClient.Options.ClientId} 已断开连接,断开原因:{arg.Exception}");
-            return Task.FromResult(true);
+            var subscribeComponents = this.GetComponents<MqttSubscribeComponent>();
+            if (subscribeComponents!=null)
+            {
+                var tasks = subscribeComponents.Select(component => component.Unsubscribe()).ToList();
+                await Task.WhenAll(tasks);
+            }
         }
 
         private Task MqttClientOnConnectedAsync(MqttClientConnectedEventArgs arg)
@@ -77,15 +89,42 @@ namespace KC
         private Task ClientOnApplicationMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs arg)
         {
             var type = MqttNet.Instance.MqttTopicCache.Get(arg.ApplicationMessage.Topic);
-            var packet = ReferencePool.Acquire<MqttReceivePacket>();
-            packet.TopicType = type;
-            packet.Buffer = arg.ApplicationMessage.PayloadSegment;
+            var packet = new MqttReceivePacket(type, arg.ApplicationMessage.PayloadSegment);
             MqttReceive?.Invoke(this,packet);
             if (!IsCloseReceivedLog)
             {
                 Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{packet.Message}");
             }
             return Task.FromResult(true);
+        }
+        
+        private void AddReconnect()
+        {
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        if (!await _mqttClient.TryPingAsync())
+                        {
+                            if (ReconnectEvent != null)
+                            {
+                                await ReconnectEvent();
+                            }
+                            await _mqttClient.ConnectAsync(_mqttClientOptions);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        if (!IsCloseReceivedLog)
+                        {
+                            Log($"MQTT客户端:{_mqttClient.Options.ClientId} 重连处理失败,{e}");
+                        }
+                        throw;
+                    }
+                }
+            });
         }
 
         private void Log(string message)

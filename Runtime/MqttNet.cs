@@ -29,6 +29,15 @@ namespace KC
             }
             return _root.GetComponent<MqttClientComponent>(type) ?? _root.AddComponentWithId<MqttClientComponent>(type);
         }
+
+        public MqttClientComponent GetMqttClient(int type)
+        {
+            if (type == 0)
+            {
+                throw new Exception("不允许使用0作为类型");
+            }
+            return _root.GetComponent<MqttClientComponent>(type);
+        }
         
         public MqttSubscribeComponent GetOrAddSubscribeTopic(int clientType, int topicType)
         {
