@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet.Client;
 using NLog;
@@ -11,8 +12,8 @@ namespace KC
     public class MqttClientComponent : Component,IAwake,IDestroy
     {
         private IMqttClient _mqttClient;
-        private ILogger _logger;
-
+        private CancellationTokenSource _reconnectCts;
+        private Task _reconnectTask;
         private MqttClientOptions _mqttClientOptions;
 
         public IMqttClient MqttClient => _mqttClient;
@@ -23,6 +24,7 @@ namespace KC
         
         public MqttClientOptionsBuilder ClientOptionsBuilder { get; set; }
         
+        internal ILogger Logger { get; private set; }
 
         public bool IsCloseReceivedLog;
         
@@ -35,37 +37,72 @@ namespace KC
             _mqttClient.ConnectedAsync += MqttClientOnConnectedAsync;
             _mqttClient.DisconnectedAsync += MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync += ClientOnApplicationMessageReceivedAsync;
+            _reconnectCts = new CancellationTokenSource();
         }
 
-        public async Task Connect(string uri, int port, string clientId, TimeSpan keepAlivePeriod)
+        public async Task<MqttClientConnectResult> Connect(string uri, int port, string clientId,
+            TimeSpan keepAlivePeriod,CancellationToken cancellationToken = default)
         {
-            if (_mqttClient.IsConnected)
-            {
-                return;
-            }
-
             var logName = "MQTT Client " + clientId;
             KC.Log.Instance?.RegisterLogger(logName);
-            _logger = LogManager.GetLogger(logName);
+            Logger = LogManager.GetLogger(logName);
             _mqttClientOptions = ClientOptionsBuilder.WithTcpServer(uri, port).WithClientId(clientId).WithCleanStart()
                 .WithKeepAlivePeriod(keepAlivePeriod).Build();
-            await _mqttClient.ConnectAsync(_mqttClientOptions);
-            AddReconnect();
+            return await _mqttClient.ConnectAsync(_mqttClientOptions, cancellationToken);
         }
 
-        public async Task Connect()
+        public async Task<MqttClientConnectResult> Connect(CancellationToken cancellationToken = default)
         {
             _mqttClientOptions = ClientOptionsBuilder.Build();
             var logName = "MQTT Client " + _mqttClientOptions.ClientId;
-            KC.Log.Instance?.RegisterLogger(logName);
-            _logger = LogManager.GetLogger(logName);
-            await _mqttClient.ConnectAsync(_mqttClientOptions);
-            AddReconnect();
+            Log.Instance?.RegisterLogger(logName);
+            Logger = LogManager.GetLogger(logName);
+            return await _mqttClient.ConnectAsync(_mqttClientOptions, cancellationToken);
+        }
+        
+        public async Task<MqttClientConnectResult> TryConnect(string uri, int port, string clientId, TimeSpan keepAlivePeriod,CancellationToken cancellationToken = default)
+        {
+            if (_mqttClient.IsConnected)
+            {
+                return null;
+            }
+            return await Connect(uri, port, clientId, keepAlivePeriod, cancellationToken);
+        }
+        
+        public async Task<MqttClientConnectResult> TryConnect(CancellationToken cancellationToken = default)
+        {
+            if (_mqttClient.IsConnected)
+            {
+                return null;
+            }
+            return await Connect(cancellationToken);
+        }
+
+        public void AddReconnect()
+        {
+            if (_reconnectTask != null)
+            {
+                return;
+            }
+            _reconnectCts = new CancellationTokenSource();
+            _reconnectTask = Reconnect();
+        }
+
+        public void RemoveReconnect()
+        {
+            if (_reconnectTask == null)
+            {
+                return;
+            }
+            _reconnectCts.Cancel();
+            _reconnectCts.Dispose();
+            _reconnectCts = null;
+            _reconnectTask = null;
         }
         
         private async Task MqttClientOnDisconnectedAsync(MqttClientDisconnectedEventArgs arg)
         {
-            Log($"MQTT客户端:{_mqttClient.Options.ClientId} 已断开连接,断开原因:{arg.Exception}");
+            Logger.Info($"MQTT客户端:{_mqttClient.Options.ClientId} 已断开连接,断开原因:{arg.Exception}");
             var subscribeComponents = this.GetComponents<MqttSubscribeComponent>();
             if (subscribeComponents!=null)
             {
@@ -76,13 +113,13 @@ namespace KC
 
         private Task MqttClientOnConnectedAsync(MqttClientConnectedEventArgs arg)
         {
-            Log($"MQTT客户端:{_mqttClient.Options.ClientId} 已连接");
+            Logger.Info($"MQTT客户端:{_mqttClient.Options.ClientId} 已连接");
             return Task.FromResult(true);
         }
 
         private Task MqttClientOnConnectingAsync(MqttClientConnectingEventArgs arg)
         {
-            Log($"MQTT客户端:{arg.ClientOptions.ClientId} 连接中");
+            Logger.Info($"MQTT客户端:{arg.ClientOptions.ClientId} 连接中");
             return Task.FromResult(true);
         }
         
@@ -93,52 +130,45 @@ namespace KC
             MqttReceive?.Invoke(this,packet);
             if (!IsCloseReceivedLog)
             {
-                Log($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{packet.Message}");
+                Logger.Trace($"MQTT客户端:{arg.ClientId} 监听主题类型:{arg.ApplicationMessage.Topic} 消息:{packet.Message}");
             }
             return Task.FromResult(true);
         }
         
-        private void AddReconnect()
+        private async Task Reconnect()
         {
-            _ = Task.Run(async () =>
+            while (!_reconnectCts.Token.IsCancellationRequested)
             {
-                while (true)
+                try
                 {
-                    try
+                    if (!await _mqttClient.TryPingAsync(cancellationToken: _reconnectCts.Token))
                     {
-                        if (!await _mqttClient.TryPingAsync())
+                        if (ReconnectEvent != null)
                         {
-                            if (ReconnectEvent != null)
-                            {
-                                await ReconnectEvent();
-                            }
-                            await _mqttClient.ConnectAsync(_mqttClientOptions);
+                            await ReconnectEvent();
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        if (!IsCloseReceivedLog)
-                        {
-                            _logger.Warn($"MQTT客户端:{_mqttClient.Options.ClientId} 重连处理失败,{e}");
-                        }
+                        await _mqttClient.ConnectAsync(_mqttClientOptions, _reconnectCts.Token);
                     }
                 }
-            });
+                catch (Exception e)
+                {
+                    if (!IsCloseReceivedLog)
+                    {
+                        Logger.Warn($"MQTT客户端:{_mqttClient.Options.ClientId} 重连处理失败,{e}");
+                    }
+                }
+            }
         }
-
-        private void Log(string message)
-        {
-            _logger.Trace(message);
-        }
-
+        
         public void Destroy()
         {
+            RemoveReconnect();
             _mqttClient.ConnectingAsync -= MqttClientOnConnectingAsync;
             _mqttClient.ConnectedAsync -= MqttClientOnConnectedAsync;
             _mqttClient.DisconnectedAsync -= MqttClientOnDisconnectedAsync;
             _mqttClient.ApplicationMessageReceivedAsync -= ClientOnApplicationMessageReceivedAsync;
             _mqttClient.DisconnectAsync();
-            KC.Log.Instance?.Remove(_logger.Name);
+            KC.Log.Instance?.Remove(Logger.Name);
         }
 
         /// <summary>

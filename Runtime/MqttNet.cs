@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
 
@@ -68,24 +69,24 @@ namespace KC
             _root.GetComponent<MqttClientComponent>(clientType)?.AddSubscribeTopics(topicTypes);
         }
 
-        public Task Subscribe(int clientType, int topicType)
+        public Task Subscribe(int clientType, int topicType,CancellationToken cancellationToken = default)
         {
-            return GetOrAddSubscribeTopic(clientType, topicType).Subscribe();
+            return GetOrAddSubscribeTopic(clientType, topicType).Subscribe(cancellationToken);
         }
         
-        public Task Unsubscribe(int clientType, int topicType)
+        public Task Unsubscribe(int clientType, int topicType,CancellationToken cancellationToken = default)
         {
-            return GetOrAddSubscribeTopic(clientType, topicType).Unsubscribe();
+            return GetOrAddSubscribeTopic(clientType, topicType).Unsubscribe(cancellationToken);
         }
         
-        public Task PublishAsync(int clientType,string publishTopic,string content)
+        public Task PublishAsync(int clientType,string publishTopic,string content,CancellationToken cancellationToken = default)
         {
-            return GetOrAddPublishTopic(clientType, publishTopic).PublishAsync(content);
+            return GetOrAddPublishTopic(clientType, publishTopic).PublishAsync(content, cancellationToken);
         }
 
-        public Task PublishAsync(int clientType, string publishTopic, ArraySegment<byte> content)
+        public Task PublishAsync(int clientType, string publishTopic, ArraySegment<byte> content,CancellationToken cancellationToken = default)
         {
-            return GetOrAddPublishTopic(clientType, publishTopic).PublishAsync(content);
+            return GetOrAddPublishTopic(clientType, publishTopic).PublishAsync(content, cancellationToken);
         }
 
         public override void Destroy()

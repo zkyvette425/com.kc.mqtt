@@ -1,7 +1,7 @@
 {
   "name": "com.kc.mqtt",
   "displayName": "KC.MQTT",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "unity": "2022.3",
   "author": "KunZhou <450228418@qq.com>",
   "dependencies": {

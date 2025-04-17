@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace KC
@@ -44,22 +45,22 @@ namespace KC
             return component.AddComponent<MqttPublishComponent, string>(topicType);
         }
         
-        public static Task Subscribe(this MqttClientComponent component, int topicType)
+        public static Task Subscribe(this MqttClientComponent component, int topicType,CancellationToken cancellationToken = default)
         {
             if (topicType == 0)
             {
                 throw new Exception("不允许使用0作为类型");
             }
-            return component.GetComponent<MqttSubscribeComponent>(topicType).Subscribe();
+            return component.GetComponent<MqttSubscribeComponent>(topicType).Subscribe(cancellationToken);
         }
         
-        public static Task Unsubscribe(this MqttClientComponent component, int topicType)
+        public static Task Unsubscribe(this MqttClientComponent component, int topicType,CancellationToken cancellationToken = default)
         {
             if (topicType == 0)
             {
                 throw new Exception("不允许使用0作为类型");
             }
-            return component.GetComponent<MqttSubscribeComponent>(topicType).Unsubscribe();
+            return component.GetComponent<MqttSubscribeComponent>(topicType).Unsubscribe(cancellationToken);
         }
     }
 }

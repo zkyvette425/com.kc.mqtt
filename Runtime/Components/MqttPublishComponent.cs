@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
 
@@ -16,14 +17,24 @@ namespace KC
             _builder = new MqttApplicationMessageBuilder().WithTopic(topic);
         }
 
-        public Task PublishAsync(string content)
+        public async Task PublishAsync(string content,CancellationToken cancellationToken = default)
         {
-            return ((MqttClientComponent)Parent).MqttClient.PublishAsync(_builder.WithPayload(content).Build());
+            var client = ((MqttClientComponent)Parent);
+            if (client.MqttClient is not { IsConnected: true })
+            {
+                return;
+            }
+            await client.MqttClient.PublishAsync(_builder.WithPayload(content).Build(), cancellationToken);
         }
         
-        public Task PublishAsync(ArraySegment<byte> content)
+        public async Task PublishAsync(ArraySegment<byte> content,CancellationToken cancellationToken = default)
         {
-            return ((MqttClientComponent)Parent).MqttClient.PublishAsync(_builder.WithPayload(content).Build());
+            var client = ((MqttClientComponent)Parent);
+            if (client.MqttClient is not { IsConnected: true })
+            {
+                return;
+            }
+            await client.MqttClient.PublishAsync(_builder.WithPayload(content).Build(), cancellationToken);
         }
 
         /// <summary>
